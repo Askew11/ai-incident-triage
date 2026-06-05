@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.models.incident import IncidentRecord
+from app.schemas.incident import IncidentResponse
 
 router = APIRouter(prefix="/api/v1", tags=["incidents"])
 
@@ -16,10 +18,22 @@ router = APIRouter(prefix="/api/v1", tags=["incidents"])
 
 # ── PERSON B — GET /incidents and GET /incidents/{id} ────────────────────────
 
-# TODO (Person B): Implement GET /incidents
-# - Optional query params: status, category, triage_status, min_urgency
-# - Order by urgency_score descending (nulls last)
-# - Return list[IncidentResponse]
+@router.get("/incidents", response_model=list[IncidentResponse])
+def list_incidents(db: Session = Depends(get_db)):
+    return (
+        db.query(IncidentRecord)
+        .order_by(IncidentRecord.urgency_score.desc().nullslast())
+        .all()
+    )
 
-# TODO (Person B): Implement GET /incidents/{incident_id}
-# - Return a single IncidentResponse or 404
+
+@router.get("/incidents/{incident_id}", response_model=IncidentResponse)
+def get_incident(incident_id: str, db: Session = Depends(get_db)):
+    incident = (
+        db.query(IncidentRecord)
+        .filter(IncidentRecord.id == incident_id)
+        .first()
+    )
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return incident

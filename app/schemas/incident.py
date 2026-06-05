@@ -19,4 +19,28 @@ class UploadResponse(BaseModel):
 #   summary, category, urgency_score, next_actions, process_gaps,
 #   triage_status, triage_error, triaged_at
 class IncidentResponse(BaseModel):
-    pass
+    # raw incident fields
+    id: str
+    title: str
+    description: Optional[str] = None
+    reported_by: Optional[str] = None
+    assigned_to: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    system: Optional[str] = None
+    tags: Optional[str] = None
+    created_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
+
+    # AI triage fields
+    summary: Optional[str] = None
+    category: Optional[str] = None
+    urgency_score: Optional[float] = None
+    next_actions: Optional[list[str]] = None
+    process_gaps: Optional[list[str]] = None
+    triage_status: Optional[str] = None
+    triage_error: Optional[str] = None
+    triaged_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
