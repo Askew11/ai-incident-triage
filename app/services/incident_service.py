@@ -1,4 +1,6 @@
 # PERSON A — Ingest track
+import pandas as pd
+from app.models.incident import IncidentRecord
 from typing import BinaryIO
 from sqlalchemy.orm import Session
 from app.schemas.incident import UploadResponse
@@ -17,7 +19,44 @@ def ingest_csv(file: BinaryIO, db: Session) -> UploadResponse:
 
     Raise ValueError if required columns are missing.
     """
-    raise NotImplementedError
+    
+    df = pd.read_csv(file)
+    
+    required = {"id", "title"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"CSV is missing required columns: {missing}") 
+    
+    uploaded = 0
+    skipped = 0
+    ids = []
+    
+    for _, row in df.iterrows():
+        incident_id = str(row["id"]).strip()
+        existing = db.get(IncidentRecord, incident_id)
+        if existing:
+            skipped += 1
+            continue
+        
+        record = IncidentRecord(
+            id=incident_id,
+            title=str(row.get("title", "")).strip(),
+            description=str(row.get("description", "")).strip() or None,
+            reported_by=str(row.get("reported_by", "")).strip() or None,
+            assigned_to=str(row.get("assigned_to", "")).strip() or None,
+            status=str(row.get("status", "")).strip() or None,
+            priority=str(row.get("priority", "")).strip() or None,
+            system=str(row.get("system", "")).strip() or None,
+            tags=str(row.get("tags", "")).strip() or None,
+        )
+        db.add(record)
+        uploaded += 1
+        ids.append(incident_id)
+        
+    db.commit()
+    return UploadResponse(uploaded=uploaded, skipped=skipped, incident_ids=ids)
+    
+    
 
 
 def run_triage(incident_id: str, db: Session):

@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.incident import IncidentRecord
-from app.schemas.incident import IncidentResponse
+from app.schemas.incident import IncidentResponse, UploadResponse
+from app.services import incident_service
 
 router = APIRouter(prefix="/api/v1", tags=["incidents"])
 
@@ -14,7 +15,9 @@ router = APIRouter(prefix="/api/v1", tags=["incidents"])
 # - Call incident_service.ingest_csv(file.file, db)
 # - Optionally kick off background triage for each uploaded incident
 # - Return UploadResponse
-
+@router.post("/incidents/upload", response_model=UploadResponse)
+def upload_incidents(file:UploadFile = File(...), db: Session = Depends(get_db)):
+    return incident_service.ingest_csv(file.file, db)
 
 # ── PERSON B — GET /incidents and GET /incidents/{id} ────────────────────────
 

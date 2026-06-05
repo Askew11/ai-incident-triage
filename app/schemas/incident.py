@@ -8,7 +8,10 @@ from pydantic import BaseModel
 # Returned after POST /upload succeeds
 # Fields to include: uploaded (int), skipped (int), incident_ids (list[str])
 class UploadResponse(BaseModel):
-    pass
+    uploaded: int
+    skipped: int
+    incident_ids: list[str]
+    
 
 
 # ── PERSON B — response shapes (what goes OUT of the API) ─────────────────────
