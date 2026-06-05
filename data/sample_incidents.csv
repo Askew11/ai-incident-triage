@@ -1,0 +1,6 @@
+id,title,description,reported_by,assigned_to,status,priority,system,tags
+INC-001,Login failure for client X,Users unable to log in after the latest deployment,Jane Smith,,Open,High,Auth Service,login;auth
+INC-002,Data export missing records,Monthly export job returned 0 rows with no error logged,John Doe,,Open,,Reporting,export;data
+INC-003,Admin panel 403 errors,Admins receive 403 Forbidden when opening settings page,Alice Lee,Bob Chen,Open,Medium,Admin Portal,permissions
+INC-004,API latency spike,API response times jumped to 8s after a config change,Bob Chen,,Open,High,Gateway,performance;config
+INC-005,Database connection pool exhausted,Connections maxed out causing intermittent 500s,Carol White,,Open,Critical,Postgres,database

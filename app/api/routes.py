@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -22,12 +23,25 @@ def upload_incidents(file:UploadFile = File(...), db: Session = Depends(get_db))
 # ── PERSON B — GET /incidents and GET /incidents/{id} ────────────────────────
 
 @router.get("/incidents", response_model=list[IncidentResponse])
-def list_incidents(db: Session = Depends(get_db)):
-    return (
-        db.query(IncidentRecord)
-        .order_by(IncidentRecord.urgency_score.desc().nullslast())
-        .all()
-    )
+def list_incidents(
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    triage_status: Optional[str] = None,
+    min_urgency: Optional[float] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(IncidentRecord)
+
+    if status is not None:
+        query = query.filter(IncidentRecord.status == status)
+    if category is not None:
+        query = query.filter(IncidentRecord.category == category)
+    if triage_status is not None:
+        query = query.filter(IncidentRecord.triage_status == triage_status)
+    if min_urgency is not None:
+        query = query.filter(IncidentRecord.urgency_score >= min_urgency)
+
+    return query.order_by(IncidentRecord.urgency_score.desc().nullslast()).all()
 
 
 @router.get("/incidents/{incident_id}", response_model=IncidentResponse)
