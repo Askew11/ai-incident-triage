@@ -74,3 +74,14 @@ def test_upload_bad_csv_returns_400(db):
 
     assert response.status_code == 400
     assert "missing required columns" in response.json()["detail"]
+    
+
+def test_rules_detect_missing_fields(db):
+    from app.services.rules_service import detect_process_gaps
+    
+    record = IncidentRecord(id="INC-TEST", title="Test", description="short")
+    gaps = detect_process_gaps(record)
+    
+    assert any("assignee" in g.lower() for g in gaps)
+    assert any("priority" in g.lower() for g in gaps)
+    assert any("vague" in g.lower() for g in gaps)

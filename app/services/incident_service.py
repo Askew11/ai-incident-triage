@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.schemas.incident import UploadResponse
 from datetime import datetime
 from app.services import ai_service
+from app.services import rules_service
 
 
 def ingest_csv(file: BinaryIO, db: Session) -> UploadResponse:
@@ -81,13 +82,15 @@ def run_triage(incident_id: str, db: Session):
     record.triage_status = "processing"
     db.commit()
     
+    rule_gaps = rules_service.detect_process_gaps(record)
+    
     try:
         result = ai_service.triage_incident(record)
         record.summary = result.summary
         record.category = result.category
         record.urgency_score = result.urgency_score
         record.next_actions = result.next_actions
-        record.process_gaps = result.process_gaps
+        record.process_gaps = result.process_gaps + rule_gaps
         record.triage_status = "done"
         record.triaged_at = datetime.utcnow()
     except Exception as e:
