@@ -200,7 +200,7 @@ pytest tests/ -v
 - [x] Similar incident lookup tool (give the agent historical context)
 - [x] Agent step logging (observe which tools the agent called and in what order)
 - [x] Retriage endpoint (`POST /incidents/{id}/retriage`)
-- [ ] Test coverage for the AI service layer
+- [x] Test coverage for the AI service layer
 
 ---
 
