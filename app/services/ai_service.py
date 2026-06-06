@@ -5,7 +5,21 @@ from openai import OpenAI
 from pydantic import BaseModel
 from app.models.incident import IncidentRecord
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+_client = None
+
+
+def get_client() -> OpenAI:
+    """Create the OpenAI client on first use (not at import time).
+
+    Building it lazily means importing this module never requires an API key —
+    only actually calling the API does. This keeps tests (which mock the API)
+    from crashing on import when no key is set.
+    """
+    global _client
+    if _client is None:
+        _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return _client
+
 
 SYSTEM_PROMPT = """You are an expert IT incident analyst.
 Analyze the incident the user gives you and respond with a JSON object containing EXACTLY these fields:
@@ -57,7 +71,7 @@ Priority: {incident.priority}
 System: {incident.system}
 Tags: {incident.tags}"""
 
-    response = client.chat.completions.create(
+    response = get_client().chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.2,
         response_format={"type": "json_object"},
