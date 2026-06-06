@@ -131,6 +131,7 @@ Interactive docs at `http://localhost:8000/docs`
 | POST | `/api/v1/incidents/upload` | Upload a CSV of incidents and trigger triage |
 | GET | `/api/v1/incidents` | Retrieve all incidents, sorted by urgency |
 | GET | `/api/v1/incidents/{id}` | Retrieve a single incident |
+| POST | `/api/v1/incidents/{id}/retriage` | Re-run triage on an existing incident |
 
 ### Query filters for `GET /api/v1/incidents`
 
@@ -198,7 +199,7 @@ pytest tests/ -v
 - [x] Docker + PostgreSQL + GitHub Actions CI
 - [x] Similar incident lookup tool (give the agent historical context)
 - [x] Agent step logging (observe which tools the agent called and in what order)
-- [ ] Retriage endpoint (`POST /incidents/{id}/retriage`)
+- [x] Retriage endpoint (`POST /incidents/{id}/retriage`)
 - [ ] Test coverage for the AI service layer
 
 ---
