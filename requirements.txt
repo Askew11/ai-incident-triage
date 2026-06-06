@@ -8,3 +8,4 @@ openpyxl
 openai
 pytest
 python-multipart
+psycopg2-binary
