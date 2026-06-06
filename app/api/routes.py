@@ -65,5 +65,14 @@ def get_incident(incident_id: str, db: Session = Depends(get_db)):
     return incident
 
 
+@router.post("/incidents/{incident_id}/retriage", response_model=IncidentResponse)
+def retriage_incident(incident_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    incident = db.query(IncidentRecord).filter(IncidentRecord.id == incident_id).first()
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    background_tasks.add_task(incident_service.run_triage, incident_id, db)
+    return incident
+
+
 
 
