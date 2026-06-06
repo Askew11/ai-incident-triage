@@ -3,6 +3,7 @@ import os
 import json
 from openai import OpenAI
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from app.models.incident import IncidentRecord
 
 _client = None
@@ -65,6 +66,23 @@ TOOLS = [
                     "urgency_score": {"type": "number"}
                 },
                 "required": ["category", "urgency_score"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "lookup_similar_incidents",
+            "description": "Look up past incidents with the same category to inform recommendations based on historical context.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "The category to search for similar incidents."
+                    }
+                },
+                "required": ["category"]
             }
         }
     },
@@ -143,7 +161,30 @@ def recommend_actions(incident: IncidentRecord, category: str, urgency_score: fl
     )
     return result["next_actions"]
 
-def _dispatch_tool(tool_name: str, args: dict, incident: IncidentRecord) -> str:
+def lookup_similar_incidents(category: str, current_id: str, db: Session) -> list[dict]:
+    incidents = (
+        db.query(IncidentRecord)
+        .filter(
+            IncidentRecord.category == category,
+            IncidentRecord.triage_status == "done",
+            IncidentRecord.id != current_id,
+        )
+        .order_by(IncidentRecord.triaged_at.desc())
+        .limit(5)
+        .all()
+    )
+    return [
+        {
+            "title": r.title,
+            "summary": r.summary,
+            "urgency_score": r.urgency_score,
+            "next_actions": r.next_actions,
+        }
+        for r in incidents
+    ]
+
+
+def _dispatch_tool(tool_name: str, args: dict, incident: IncidentRecord, db: Session) -> str:
     if tool_name == "classify_incident":
         return json.dumps({"category": classify_incident(incident)})
     elif tool_name == "score_urgency":
@@ -152,16 +193,20 @@ def _dispatch_tool(tool_name: str, args: dict, incident: IncidentRecord) -> str:
     elif tool_name == "recommend_actions":
         actions = recommend_actions(incident, args["category"], args["urgency_score"])
         return json.dumps({"next_actions": actions})
+    elif tool_name == "lookup_similar_incidents":
+        similar = lookup_similar_incidents(args["category"], incident.id, db)
+        return json.dumps({"similar_incidents": similar})
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
-def triage_incident(incident: IncidentRecord) -> TriageResult:
+def triage_incident(incident: IncidentRecord, db: Session) -> TriageResult:
     messages = [
         {
             "role": "system",
             "content": (
                 f"You are an IT incident triage agent. Use the available tools to classify, "
                 f"score, and recommend actions for the incident. Valid categories: {CATEGORIES}. "
+                f"You can also look up similar past incidents for historical context. "
                 f"When you have all the information you need, call finalize_triage."
             ),
         },
@@ -189,7 +234,7 @@ def triage_incident(incident: IncidentRecord) -> TriageResult:
             if tool_call.function.name == "finalize_triage":
                 return TriageResult(**args)
 
-            result = _dispatch_tool(tool_call.function.name, args, incident)
+            result = _dispatch_tool(tool_call.function.name, args, incident, db)
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,

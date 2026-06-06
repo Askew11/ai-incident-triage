@@ -85,7 +85,7 @@ def run_triage(incident_id: str, db: Session):
     rule_gaps = rules_service.detect_process_gaps(record)
     
     try:
-        result = ai_service.triage_incident(record)
+        result = ai_service.triage_incident(record, db)
         record.summary = result.summary
         record.category = result.category
         record.urgency_score = result.urgency_score
