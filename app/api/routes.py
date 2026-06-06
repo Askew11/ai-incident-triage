@@ -1,10 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.incident import IncidentRecord
 from app.schemas.incident import IncidentResponse, UploadResponse
 from app.services import incident_service
+
 
 router = APIRouter(prefix="/api/v1", tags=["incidents"])
 
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/api/v1", tags=["incidents"])
 # - Optionally kick off background triage for each uploaded incident
 # - Return UploadResponse
 @router.post("/incidents/upload", response_model=UploadResponse)
-def upload_incidents(file: UploadFile = File(...), db: Session = Depends(get_db)):
+def upload_incidents(background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
         result =  incident_service.ingest_csv(file.file, db)
     except ValueError as e:
@@ -25,8 +26,7 @@ def upload_incidents(file: UploadFile = File(...), db: Session = Depends(get_db)
 
     
     for incident_id in result.incident_ids:
-        incident_service.run_triage(incident_id, db)
-
+        background_tasks.add_task(incident_service.run_triage, incident_id, db)
     return result
 
 # ── PERSON B — GET /incidents and GET /incidents/{id} ────────────────────────
