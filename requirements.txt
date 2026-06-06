@@ -7,3 +7,4 @@ pandas
 openpyxl
 openai
 pytest
+python-multipart
