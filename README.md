@@ -194,8 +194,8 @@ pytest tests/ -v
 - [x] Filterable REST API with results sorted by urgency
 
 ### Up Next
-- [ ] Async background triage (don't block the upload response)
-- [ ] Docker + PostgreSQL + GitHub Actions CI
+- [x] Async background triage (don't block the upload response)
+- [x] Docker + PostgreSQL + GitHub Actions CI
 - [ ] Similar incident lookup tool (give the agent historical context)
 - [ ] Agent step logging (observe which tools the agent called and in what order)
 - [ ] Retriage endpoint (`POST /incidents/{id}/retriage`)
