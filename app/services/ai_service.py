@@ -21,47 +21,17 @@ def get_client() -> OpenAI:
     return _client
 
 
-SYSTEM_PROMPT = """You are an expert IT incident analyst.
-Analyze the incident the user gives you and respond with a JSON object containing EXACTLY these fields:
-- summary: a 2-3 sentence business-readable explanation of the incident
-- category: choose exactly ONE of: access_issue, deployment_issue, data_issue, configuration_issue, performance_issue, security_issue, compliance_issue, infrastructure_issue
-- urgency_score: a number from 0.0 (trivial) to 10.0 (critical), based on impact and priority
-- next_actions: a list of specific, actionable next steps
-- process_gaps: a list of missing info or process problems (empty list if none)
-
-Respond with ONLY the JSON object, nothing else."""
-
+CATEGORIES = "access_issue, deployment_issue, data_issue, configuration_issue, performance_issue, security_issue, compliance_issue, infrastructure_issue"
 
 class TriageResult(BaseModel):
-    summary: str                # 2-3 sentence business-readable explanation
-    category: str               # one of the categories listed in the prompt
-    urgency_score: float        # 0.0 to 10.0
+    summary: str
+    category: str
+    urgency_score: float
     next_actions: list[str]
     process_gaps: list[str]
 
-
-def triage_incident(incident: IncidentRecord) -> TriageResult:
-    """
-    Call the OpenAI API to triage the incident and return a TriageResult.
-
-    Steps to implement:
-    1. Build a prompt that includes all relevant incident fields
-    2. Call the OpenAI chat completions API with response_format={"type": "json_object"}
-    3. Parse the JSON response into a TriageResult
-    4. Return it
-
-    The prompt should ask the model to return exactly these fields:
-    {
-      "summary": "...",
-      "category": "access_issue | deployment_issue | data_issue | configuration_issue | performance_issue | security_issue | compliance_issue | infrastructure_issue",
-      "urgency_score": 0.0-10.0,
-      "next_actions": ["...", "..."],
-      "process_gaps": ["...", "..."]
-    }
-
-    Use model: "gpt-4o-mini", temperature: 0.2
-    """
-    user_message = f"""Incident ID: {incident.id}
+def _incident_context(incident: IncidentRecord) -> str:
+    return f"""Incident ID: {incident.id}
 Title: {incident.title}
 Description: {incident.description}
 Reported by: {incident.reported_by}
@@ -71,15 +41,53 @@ Priority: {incident.priority}
 System: {incident.system}
 Tags: {incident.tags}"""
 
+
+def _call(system: str, user: str) -> dict:
     response = get_client().chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.2,
         response_format={"type": "json_object"},
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
         ],
     )
+    return json.loads(response.choices[0].message.content)
 
-    data = json.loads(response.choices[0].message.content)
-    return TriageResult(**data)
+
+def classify_incident(incident: IncidentRecord) -> str:
+    result = _call(
+        system=f"You are an IT incident classifier. Respond with JSON: {{\"category\": \"<one of: {CATEGORIES}>\"}}",
+        user=_incident_context(incident),
+    )
+    return result["category"]
+
+
+def score_urgency(incident: IncidentRecord, category: str) -> float:
+    result = _call(
+        system=f"You are an IT urgency scorer. This incident is categorized as '{category}'. Respond with JSON: {{\"urgency_score\": <0.0-10.0>, \"summary\": \"<2-3 sentence explanation>\"}}",
+        user=_incident_context(incident),
+    )
+    return result["urgency_score"], result["summary"]
+
+
+def recommend_actions(incident: IncidentRecord, category: str, urgency_score: float) -> list[str]:
+    result = _call(
+        system=f"You are an IT incident responder. Category: '{category}', Urgency: {urgency_score}/10. Respond with JSON: {{\"next_actions\": [\"...\"]}}",
+        user=_incident_context(incident),
+    )
+    return result["next_actions"]
+
+
+def triage_incident(incident: IncidentRecord) -> TriageResult:
+    category = classify_incident(incident)
+    urgency_score, summary = score_urgency(incident, category)
+    next_actions = recommend_actions(incident, category, urgency_score)
+
+    return TriageResult(
+        summary=summary,
+        category=category,
+        urgency_score=urgency_score,
+        next_actions=next_actions,
+        process_gaps=[],
+    )
