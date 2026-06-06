@@ -4,6 +4,8 @@ from app.models.incident import IncidentRecord
 from typing import BinaryIO
 from sqlalchemy.orm import Session
 from app.schemas.incident import UploadResponse
+from datetime import datetime
+from app.services import ai_service
 
 
 def ingest_csv(file: BinaryIO, db: Session) -> UploadResponse:
@@ -21,6 +23,7 @@ def ingest_csv(file: BinaryIO, db: Session) -> UploadResponse:
     """
     
     df = pd.read_csv(file)
+    df = df.where(pd.notna(df), None)
     
     required = {"id", "title"}
     missing = required - set(df.columns)
@@ -71,4 +74,26 @@ def run_triage(incident_id: str, db: Session):
     5. Set triage_status = "done" (or "error" on exception)
     6. Commit and return the updated record
     """
-    raise NotImplementedError
+    record = db.get(IncidentRecord, incident_id)
+    if record is None:
+        raise ValueError(f"Incident {incident_id} not found")
+    
+    record.triage_status = "processing"
+    db.commit()
+    
+    try:
+        result = ai_service.triage_incident(record)
+        record.summary = result.summary
+        record.category = result.category
+        record.urgency_score = result.urgency_score
+        record.next_actions = result.next_actions
+        record.process_gaps = result.process_gaps
+        record.triage_status = "done"
+        record.triaged_at = datetime.utcnow()
+    except Exception as e:
+        record.triage_status = "error"
+        record.triage_error = str(e)
+
+    db.commit()
+    return record
+    

@@ -19,9 +19,15 @@ router = APIRouter(prefix="/api/v1", tags=["incidents"])
 @router.post("/incidents/upload", response_model=UploadResponse)
 def upload_incidents(file: UploadFile = File(...), db: Session = Depends(get_db)):
     try:
-        return incident_service.ingest_csv(file.file, db)
+        result =  incident_service.ingest_csv(file.file, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    
+    for incident_id in result.incident_ids:
+        incident_service.run_triage(incident_id, db)
+
+    return result
 
 # ── PERSON B — GET /incidents and GET /incidents/{id} ────────────────────────
 
