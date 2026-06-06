@@ -23,6 +23,71 @@ def get_client() -> OpenAI:
 
 CATEGORIES = "access_issue, deployment_issue, data_issue, configuration_issue, performance_issue, security_issue, compliance_issue, infrastructure_issue"
 
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "classify_incident",
+            "description": "Classify the incident into a category based on its details.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+        {
+        "type": "function",
+        "function": {
+            "name": "score_urgency",
+            "description": "Score the urgency of the incident from 0 to 10 and write a summary.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "The category previously determined by classify_incident."
+                    }
+                },
+                "required": ["category"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "recommend_actions",
+            "description": "Recommend next actions to resolve the incident.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string"},
+                    "urgency_score": {"type": "number"}
+                },
+                "required": ["category", "urgency_score"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "finalize_triage",
+            "description": "Call this when you have enough information to complete the triage. Pass all final results as arguments.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "category": {"type": "string"},
+                    "urgency_score": {"type": "number"},
+                    "next_actions": {"type": "array", "items": {"type": "string"}},
+                    "process_gaps": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["summary", "category", "urgency_score", "next_actions", "process_gaps"]
+            }
+        }
+    }                                                                                                                                                     
+]
+
 class TriageResult(BaseModel):
     summary: str
     category: str
@@ -78,16 +143,57 @@ def recommend_actions(incident: IncidentRecord, category: str, urgency_score: fl
     )
     return result["next_actions"]
 
+def _dispatch_tool(tool_name: str, args: dict, incident: IncidentRecord) -> str:
+    if tool_name == "classify_incident":
+        return json.dumps({"category": classify_incident(incident)})
+    elif tool_name == "score_urgency":
+        urgency_score, summary = score_urgency(incident, args["category"])
+        return json.dumps({"urgency_score": urgency_score, "summary": summary})
+    elif tool_name == "recommend_actions":
+        actions = recommend_actions(incident, args["category"], args["urgency_score"])
+        return json.dumps({"next_actions": actions})
+    else:
+        return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
 def triage_incident(incident: IncidentRecord) -> TriageResult:
-    category = classify_incident(incident)
-    urgency_score, summary = score_urgency(incident, category)
-    next_actions = recommend_actions(incident, category, urgency_score)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"You are an IT incident triage agent. Use the available tools to classify, "
+                f"score, and recommend actions for the incident. Valid categories: {CATEGORIES}. "
+                f"When you have all the information you need, call finalize_triage."
+            ),
+        },
+        {"role": "user", "content": _incident_context(incident)},
+    ]
 
-    return TriageResult(
-        summary=summary,
-        category=category,
-        urgency_score=urgency_score,
-        next_actions=next_actions,
-        process_gaps=[],
-    )
+    for _ in range(10):
+        response = get_client().chat.completions.create(
+            model="gpt-4o-mini",
+            temperature=0.2,
+            tools=TOOLS,
+            messages=messages,
+        )
+
+        message = response.choices[0].message
+
+        if not message.tool_calls:
+            raise RuntimeError("Agent stopped without calling finalize_triage")
+
+        messages.append(message)
+
+        for tool_call in message.tool_calls:
+            args = json.loads(tool_call.function.arguments)
+
+            if tool_call.function.name == "finalize_triage":
+                return TriageResult(**args)
+
+            result = _dispatch_tool(tool_call.function.name, args, incident)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
+
+    raise RuntimeError("Agent did not finalize triage within 10 steps")
