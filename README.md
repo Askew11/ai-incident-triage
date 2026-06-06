@@ -195,10 +195,11 @@ pytest tests/ -v
 
 ### Up Next
 - [ ] Async background triage (don't block the upload response)
+- [ ] Docker + PostgreSQL + GitHub Actions CI
 - [ ] Similar incident lookup tool (give the agent historical context)
+- [ ] Agent step logging (observe which tools the agent called and in what order)
 - [ ] Retriage endpoint (`POST /incidents/{id}/retriage`)
 - [ ] Test coverage for the AI service layer
-- [ ] Docker + PostgreSQL setup
 
 ---
 
