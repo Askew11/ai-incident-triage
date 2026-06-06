@@ -28,3 +28,4 @@ class IncidentRecord(Base):
     triage_status = Column(String, default="pending")  # pending | done | error
     triage_error = Column(Text, nullable=True)
     triaged_at = Column(DateTime, nullable=True)
+    triage_steps = Column(JSON, nullable=True)

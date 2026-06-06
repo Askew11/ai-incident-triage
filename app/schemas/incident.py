@@ -44,6 +44,7 @@ class IncidentResponse(BaseModel):
     triage_status: Optional[str] = None
     triage_error: Optional[str] = None
     triaged_at: Optional[datetime] = None
+    triage_steps: Optional[list] = None
 
     class Config:
         from_attributes = True

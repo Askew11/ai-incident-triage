@@ -112,6 +112,7 @@ class TriageResult(BaseModel):
     urgency_score: float
     next_actions: list[str]
     process_gaps: list[str]
+    triage_steps: list[dict] = []
 
 def _incident_context(incident: IncidentRecord) -> str:
     return f"""Incident ID: {incident.id}
@@ -213,6 +214,8 @@ def triage_incident(incident: IncidentRecord, db: Session) -> TriageResult:
         {"role": "user", "content": _incident_context(incident)},
     ]
 
+    steps = []
+
     for _ in range(10):
         response = get_client().chat.completions.create(
             model="gpt-4o-mini",
@@ -232,9 +235,16 @@ def triage_incident(incident: IncidentRecord, db: Session) -> TriageResult:
             args = json.loads(tool_call.function.arguments)
 
             if tool_call.function.name == "finalize_triage":
-                return TriageResult(**args)
+                steps.append({"step": len(steps) + 1, "tool": "finalize_triage"})
+                return TriageResult(**args, triage_steps=steps)
 
             result = _dispatch_tool(tool_call.function.name, args, incident, db)
+            steps.append({
+                "step": len(steps) + 1,
+                "tool": tool_call.function.name,
+                "args": args,
+                "result": json.loads(result),
+            })
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,

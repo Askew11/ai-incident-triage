@@ -91,6 +91,7 @@ def run_triage(incident_id: str, db: Session):
         record.urgency_score = result.urgency_score
         record.next_actions = result.next_actions
         record.process_gaps = result.process_gaps + rule_gaps
+        record.triage_steps = result.triage_steps
         record.triage_status = "done"
         record.triaged_at = datetime.utcnow()
     except Exception as e:
