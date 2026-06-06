@@ -17,8 +17,11 @@ router = APIRouter(prefix="/api/v1", tags=["incidents"])
 # - Optionally kick off background triage for each uploaded incident
 # - Return UploadResponse
 @router.post("/incidents/upload", response_model=UploadResponse)
-def upload_incidents(file:UploadFile = File(...), db: Session = Depends(get_db)):
-    return incident_service.ingest_csv(file.file, db)
+def upload_incidents(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    try:
+        return incident_service.ingest_csv(file.file, db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # ── PERSON B — GET /incidents and GET /incidents/{id} ────────────────────────
 
@@ -54,3 +57,7 @@ def get_incident(incident_id: str, db: Session = Depends(get_db)):
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
     return incident
+
+
+
+

@@ -58,3 +58,19 @@ def test_ingest_partial_duplicate(db):
     assert result.uploaded == 1
     assert result.skipped == 1
     assert "INC-002" in result.incident_ids
+    
+def test_upload_bad_csv_returns_400(db):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    csv_data = "name,description\nSome incident,Something broke\n"
+    file = io.BytesIO(csv_data.encode())
+
+    response = client.post(
+        "/api/v1/incidents/upload",
+        files={"file": ("bad.csv", file, "text/csv")},
+    )
+
+    assert response.status_code == 400
+    assert "missing required columns" in response.json()["detail"]
