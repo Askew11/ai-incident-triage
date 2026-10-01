@@ -20,13 +20,14 @@ A backend AI service that ingests IT incident records, classifies and summarizes
 
 ## How the AI Agent Works
 
-Instead of a fixed pipeline, the triage agent uses OpenAI tool calling to decide its own steps. It is given four tools:
+Instead of a fixed pipeline, the triage agent uses OpenAI tool calling to decide its own steps. It is given five tools:
 
 | Tool | What it does |
 |---|---|
 | `classify_incident` | Picks a category based on the incident details |
 | `score_urgency` | Scores urgency 0–10 and writes a summary |
 | `recommend_actions` | Returns a list of next steps |
+| `lookup_similar_incidents` | Finds past triaged incidents in the same category for context |
 | `finalize_triage` | Signals the agent is done and submits the final result |
 
 The model calls tools in whatever order it chooses, reads the results, and continues until it calls `finalize_triage`. This means it can skip steps it doesn't need or revisit a step with new context.
