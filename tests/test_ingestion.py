@@ -1,4 +1,5 @@
 import io
+from datetime import datetime
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -85,3 +86,42 @@ def test_rules_detect_missing_fields(db):
     assert any("assignee" in g.lower() for g in gaps)
     assert any("priority" in g.lower() for g in gaps)
     assert any("vague" in g.lower() for g in gaps)
+
+def test_ingest_blank_fields_stored_as_none(db):
+    csv_data = (
+        "id,title,description,assigned_to,priority\n"
+        "INC-001,Login failure,Users unable to log in after deploy,,\n"
+    )
+    ingest_csv(io.BytesIO(csv_data.encode()), db)
+
+    record = db.get(IncidentRecord, "INC-001")
+    assert record.assigned_to is None
+    assert record.priority is None
+
+
+def test_ingest_parses_timestamps(db):
+    csv_data = (
+        "id,title,created_at,resolved_at\n"
+        "INC-001,Has dates,2026-06-05 11:30:00,\n"
+        "INC-002,Bad date,not-a-date,\n"
+    )
+    ingest_csv(io.BytesIO(csv_data.encode()), db)
+
+    assert db.get(IncidentRecord, "INC-001").created_at == datetime(2026, 6, 5, 11, 30)
+    assert db.get(IncidentRecord, "INC-001").resolved_at is None
+    assert db.get(IncidentRecord, "INC-002").created_at is None
+
+
+def test_rules_flag_gaps_on_ingested_incident(db):
+    from app.services.rules_service import detect_process_gaps
+
+    csv_data = (
+        "id,title,description,assigned_to,status,priority,created_at\n"
+        "INC-001,Old unowned ticket,Rollback requested but nobody picked it up,,Open,,2020-01-01 09:00:00\n"
+    )
+    ingest_csv(io.BytesIO(csv_data.encode()), db)
+
+    gaps = detect_process_gaps(db.get(IncidentRecord, "INC-001"))
+    assert any("assignee" in g.lower() for g in gaps)
+    assert any("priority" in g.lower() for g in gaps)
+    assert any("open for" in g.lower() for g in gaps)

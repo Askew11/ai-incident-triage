@@ -9,6 +9,29 @@ from app.services import ai_service
 from app.services import rules_service
 
 
+def _clean(value) -> str | None:
+    """Return a stripped string, or None for blank cells.
+
+    pandas reads blank cells as NaN, and str(NaN) is "nan", so checking
+    for missing values has to happen before converting to a string.
+    """
+    if value is None or pd.isna(value):
+        return None
+    return str(value).strip() or None
+
+
+def _timestamp(value) -> datetime | None:
+    """Parse a CSV timestamp into a naive UTC datetime, or None if blank or invalid."""
+    text = _clean(value)
+    if text is None:
+        return None
+    ts = pd.to_datetime(text, errors="coerce", utc=True)
+    if pd.isna(ts):
+        return None
+    # rules_service compares against datetime.utcnow(), which is naive UTC
+    return ts.tz_convert(None).to_pydatetime()
+
+
 def ingest_csv(file: BinaryIO, db: Session) -> UploadResponse:
     """
     Parse the uploaded CSV file and save each row as an IncidentRecord.
@@ -44,14 +67,16 @@ def ingest_csv(file: BinaryIO, db: Session) -> UploadResponse:
         
         record = IncidentRecord(
             id=incident_id,
-            title=str(row.get("title", "")).strip(),
-            description=str(row.get("description", "")).strip() or None,
-            reported_by=str(row.get("reported_by", "")).strip() or None,
-            assigned_to=str(row.get("assigned_to", "")).strip() or None,
-            status=str(row.get("status", "")).strip() or None,
-            priority=str(row.get("priority", "")).strip() or None,
-            system=str(row.get("system", "")).strip() or None,
-            tags=str(row.get("tags", "")).strip() or None,
+            title=_clean(row.get("title")) or "",
+            description=_clean(row.get("description")),
+            reported_by=_clean(row.get("reported_by")),
+            assigned_to=_clean(row.get("assigned_to")),
+            status=_clean(row.get("status")),
+            priority=_clean(row.get("priority")),
+            system=_clean(row.get("system")),
+            tags=_clean(row.get("tags")),
+            created_at=_timestamp(row.get("created_at")),
+            resolved_at=_timestamp(row.get("resolved_at")),
         )
         db.add(record)
         uploaded += 1
